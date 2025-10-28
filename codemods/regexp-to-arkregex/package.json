@@ -1,10 +1,10 @@
 {
-	"name": "jssg-codemod",
+	"name": "@codemod/regexp-to-arkregex",
 	"version": "0.1.0",
-	"description": "Transform legacy code patterns",
+	"description": "using arkregex instead of `new RegExp`",
 	"type": "module",
 	"devDependencies": {
-		"@codemod.com/jssg-types": "^1.0.3",
+		"@codemod.com/jssg-types": "^1.0.9",
 		"typescript": "^5.8.3"
 	},
 	"scripts": {
