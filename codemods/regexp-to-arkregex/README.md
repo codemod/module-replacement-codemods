@@ -1,4 +1,4 @@
-# @codemod/arkregex
+# @codemod/regexp-to-arkregex
 
 Migrate `new RegExp()` constructor calls to [arkregex](https://arktype.io/docs/regex)'s type-safe `regex()` function.
 
