@@ -23,10 +23,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Find codemod.yaml
+        id: find
+        run: |
+          CODEMOD_YAML=$(find . -name "codemod.yaml" -type f | head -n 1)
+          if [ -z "$CODEMOD_YAML" ]; then
+            echo "Error: codemod.yaml not found"
+            exit 1
+          fi
+          CODEMOD_DIR=$(dirname "$CODEMOD_YAML")
+          echo "path=$CODEMOD_YAML" >> $GITHUB_OUTPUT
+          echo "dir=$CODEMOD_DIR" >> $GITHUB_OUTPUT
+
       - name: Get current version
         id: current
         run: |
-          VERSION=$(grep '^version:' codemod.yaml | sed 's/version: *"//' | sed 's/"//')
+          VERSION=$(grep '^version:' "${{ steps.find.outputs.path }}" | sed 's/version: *"//' | sed 's/"//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Calculate new version
@@ -55,17 +67,18 @@ jobs:
 
       - name: Update codemod.yaml
         run: |
-          sed -i 's/^version: *".*"/version: "${{ steps.new.outputs.version }}"/' codemod.yaml
+          sed -i 's/^version: *".*"/version: "${{ steps.new.outputs.version }}"/' "${{ steps.find.outputs.path }}"
 
       # This does not trigger the release.yml workflow because GitHub Actions does not support triggering workflows from within a workflow.
       - name: Commit and tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add codemod.yaml
+          git add "${{ steps.find.outputs.path }}"
           git commit -m "chore: bump version to ${{ steps.new.outputs.version }}"
           git tag "v${{ steps.new.outputs.version }}"
           git push origin main --tags
 
       - name: Publish codemod
         uses: codemod/publish-action@v1
+        working-directory: ${{ steps.find.outputs.dir }}
