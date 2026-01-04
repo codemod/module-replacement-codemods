@@ -115,7 +115,7 @@ nodes:
             # Check if this package actually uses the dependency
             if has_package_import "$package_dir" "$PACKAGE_NAME"; then
               # Detect package manager for this specific package (might be different in monorepos)
-              local pm=$(detect_package_manager "$package_dir")
+              pm=$(detect_package_manager "$package_dir")
               install_package "$package_dir" "$pm"
             else
               echo "Skipping $(basename "$package_dir"): no imports of ${PACKAGE_NAME} found"
