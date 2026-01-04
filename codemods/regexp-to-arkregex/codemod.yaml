@@ -1,8 +1,8 @@
 schema_version: "1.0"
 
 name: "@codemod/regexp-to-arkregex"
-version: "0.1.2"
-description: "using arkregex instead of `new RegExp`"
+version: "1.0.0"
+description: "Replace`new RegExp` usages with arkregex's type-safe `regex()` function"
 author: "Amirabbas Ghasemi <amirabbas08dev@gmail.com>"
 license: "MIT"
 workflow: "workflow.yaml"
@@ -11,10 +11,11 @@ repository: "https://github.com/codemod/module-replacement-codemods/tree/main/co
 targets:
   languages: ["typescript"]
 
-keywords: ["transformation", "migration", "arkregex"]
+keywords: [ "migration", "arkregex"]
 
 registry:
   access: "public"
   visibility: "public"
 
-capabilities: []
+capabilities:
+  - fs

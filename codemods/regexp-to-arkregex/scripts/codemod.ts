@@ -1,7 +1,7 @@
 import { type SgRoot, parse } from "codemod:ast-grep";
-import type TS from "codemod:ast-grep/langs/typescript";
+import type TSX from "codemod:ast-grep/langs/tsx";
 
-async function transform(root: SgRoot<TS>): Promise<string> {
+async function transform(root: SgRoot<TSX>): Promise<string | null> {
   const rootNode = root.root();
 
   const regexExpressionsRule = rootNode.findAll({
@@ -26,11 +26,12 @@ async function transform(root: SgRoot<TS>): Promise<string> {
     edits.push(expression.replace(`regex${args}`));
   }
 
-  let newSource = rootNode.commitEdits(edits);
-
-  if (edits.length) {
-    newSource = `import { regex } from "arkregex";\n${newSource}`;
+  if (edits.length === 0) {
+    return null;
   }
+
+  let newSource = rootNode.commitEdits(edits);
+  newSource = `import { regex } from "arkregex";\n${newSource}`;
 
   return newSource;
 }
