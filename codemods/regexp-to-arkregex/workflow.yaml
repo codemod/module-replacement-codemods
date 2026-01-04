@@ -19,7 +19,7 @@ nodes:
       - id: install-package-if-needed
         name: "Install the package and update the relevant package.json and lock file as needed"
         run: |
-          set -euo pipefail
+          set -eu
           
           PACKAGE_NAME="arkregex"
           PACKAGE_VERSION="0.0.5"
@@ -98,7 +98,12 @@ nodes:
           
           # Find all package.json files in the target directory
           # Exclude node_modules and common build/dependency directories
-          while IFS= read -r -d '' package_json; do
+          find "$target_dir" -name "package.json" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.git/*" \
+            -not -path "*/dist/*" \
+            -not -path "*/build/*" \
+            -print0 | while IFS= read -r -d '' package_json; do
             package_dir=$(dirname "$package_json")
             
             # Skip if this package already has the dependency (check both dependencies and devDependencies)
@@ -115,9 +120,4 @@ nodes:
             else
               echo "Skipping $(basename "$package_dir"): no imports of ${PACKAGE_NAME} found"
             fi
-          done < <(find "$target_dir" -name "package.json" \
-            -not -path "*/node_modules/*" \
-            -not -path "*/.git/*" \
-            -not -path "*/dist/*" \
-            -not -path "*/build/*" \
-            -print0)
+          done
