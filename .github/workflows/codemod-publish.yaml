@@ -90,5 +90,23 @@ jobs:
           git tag "v${{ steps.new.outputs.version }}"
           git push origin main --tags
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+
+      - name: Install codemod CLI
+        run: npm install -g codemod@latest
+
+      - name: Get authentication token
+        id: auth
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('https://app.codemod.com');
+            core.setOutput('token', token);
+            core.setSecret(token);
+
       - name: Publish codemod
-        uses: codemod/publish-action@v1
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: codemod publish
+        env:
+          CODEMOD_AUTH_TOKEN: ${{ steps.auth.outputs.token }}
