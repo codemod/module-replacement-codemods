@@ -31,7 +31,15 @@ jobs:
             echo "Error: codemod.yaml not found"
             exit 1
           fi
+          # Normalize path: remove leading ./ if present
+          CODEMOD_YAML="${CODEMOD_YAML#./}"
           CODEMOD_DIR=$(dirname "$CODEMOD_YAML")
+          # If dir is ".", set it to empty for working-directory
+          if [ "$CODEMOD_DIR" = "." ]; then
+            CODEMOD_DIR=""
+          fi
+          echo "Found codemod.yaml at: $CODEMOD_YAML"
+          echo "Directory: ${CODEMOD_DIR:-.}"
           echo "path=$CODEMOD_YAML" >> $GITHUB_OUTPUT
           echo "dir=$CODEMOD_DIR" >> $GITHUB_OUTPUT
 
@@ -67,7 +75,13 @@ jobs:
 
       - name: Update codemod.yaml
         run: |
-          sed -i 's/^version: *".*"/version: "${{ steps.new.outputs.version }}"/' "${{ steps.find.outputs.path }}"
+          CODEMOD_PATH="${{ steps.find.outputs.path }}"
+          echo "Updating version in: $CODEMOD_PATH"
+          if [ ! -f "$CODEMOD_PATH" ]; then
+            echo "Error: File not found: $CODEMOD_PATH"
+            exit 1
+          fi
+          sed -i 's/^version: *".*"/version: "${{ steps.new.outputs.version }}"/' "$CODEMOD_PATH"
 
       # This does not trigger the release.yml workflow because GitHub Actions does not support triggering workflows from within a workflow.
       - name: Commit and tag
