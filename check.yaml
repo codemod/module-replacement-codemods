@@ -1,7 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/codemod/codemod/refs/heads/main/schemas/workflow.json
-
 version: "1"
-
 nodes:
   - id: transform-and-update
     name: Transform code and update dependencies
@@ -15,7 +12,6 @@ nodes:
           includes:
             - "**/*.ts"
             - "**/*.tsx"
-
       - id: install-package-if-needed
         name: "Install the package and update the relevant package.json and lock file as needed"
         run: |
@@ -24,7 +20,6 @@ nodes:
           PACKAGE_NAME="arkregex"
           PACKAGE_VERSION="0.0.5"
           
-          # Find package manager by checking for lock files
           detect_package_manager() {
             local dir="$1"
             
@@ -37,30 +32,24 @@ nodes:
             elif [ -f "$dir/package-lock.json" ]; then
               echo "npm"
             else
-              # Default to npm if no lock file found
               echo "npm"
             fi
           }
           
-          # Check if a directory contains TypeScript files that import the package
           has_package_import() {
             local dir="$1"
             local package="$2"
             
-            # Use find to search for .ts and .tsx files, excluding node_modules, .git, dist, build
             if find "$dir" -type f \( -name "*.ts" -o -name "*.tsx" \) \
               -not -path "*/node_modules/*" \
               -not -path "*/.git/*" \
               -not -path "*/dist/*" \
               -not -path "*/build/*" \
               -exec grep -l "from [\"']${package}[\"']" {} \; 2>/dev/null | head -1 | grep -q .; then
-              return 0  # Found import
             else
-              return 1  # No import found
             fi
           }
           
-          # Install package using the detected package manager
           install_package() {
             local dir="$1"
             local pm="$2"
@@ -88,28 +77,20 @@ nodes:
             esac
           }
           
-          # Main execution
-          # Start from the target directory (where the codemod is run)
           target_dir="${PWD}"
           
-          # Detect package manager at root level
           root_pm=$(detect_package_manager "$target_dir")
           echo "Detected package manager: $root_pm"
           
-          # Find all package.json files in the target directory
-          # Exclude node_modules and common build/dependency directories
           while IFS= read -r -d '' package_json; do
             package_dir=$(dirname "$package_json")
             
-            # Skip if this package already has the dependency (check both dependencies and devDependencies)
             if grep -q "\"${PACKAGE_NAME}\"" "$package_json" 2>/dev/null; then
               echo "Skipping $(basename "$package_dir"): ${PACKAGE_NAME} already in dependencies or devDependencies"
               continue
             fi
             
-            # Check if this package actually uses the dependency
             if has_package_import "$package_dir" "$PACKAGE_NAME"; then
-              # Detect package manager for this specific package (might be different in monorepos)
               local pm=$(detect_package_manager "$package_dir")
               install_package "$package_dir" "$pm"
             else
