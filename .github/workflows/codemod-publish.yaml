@@ -92,4 +92,3 @@ jobs:
 
       - name: Publish codemod
         uses: codemod/publish-action@v1
-        working-directory: ${{ steps.find.outputs.dir }}
