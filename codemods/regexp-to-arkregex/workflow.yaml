@@ -49,11 +49,11 @@ nodes:
             
             # Use find to search for .ts and .tsx files, excluding node_modules, .git, dist, build
             if find "$dir" -type f \( -name "*.ts" -o -name "*.tsx" \) \
-              -not -path "*/node_modules/*" \
-              -not -path "*/.git/*" \
-              -not -path "*/dist/*" \
-              -not -path "*/build/*" \
-              -exec grep -l "from [\"']${package}[\"']" {} \; 2>/dev/null | head -1 | grep -q .; then
+              ! -path "*/node_modules/*" \
+              ! -path "*/.git/*" \
+              ! -path "*/dist/*" \
+              ! -path "*/build/*" \
+              -exec grep -l "from [\"']${package}[\"']" {} \; 2>/dev/null | head -n 1 | grep -q .; then
               return 0  # Found import
             else
               return 1  # No import found
@@ -99,11 +99,11 @@ nodes:
           # Find all package.json files in the target directory
           # Exclude node_modules and common build/dependency directories
           find "$target_dir" -name "package.json" \
-            -not -path "*/node_modules/*" \
-            -not -path "*/.git/*" \
-            -not -path "*/dist/*" \
-            -not -path "*/build/*" \
-            -print0 | while IFS= read -r -d '' package_json; do
+            ! -path "*/node_modules/*" \
+            ! -path "*/.git/*" \
+            ! -path "*/dist/*" \
+            ! -path "*/build/*" \
+            -print | while IFS= read -r package_json; do
             package_dir=$(dirname "$package_json")
             
             # Skip if this package already has the dependency (check both dependencies and devDependencies)
