@@ -34,12 +34,9 @@ jobs:
           # Normalize path: remove leading ./ if present
           CODEMOD_YAML="${CODEMOD_YAML#./}"
           CODEMOD_DIR=$(dirname "$CODEMOD_YAML")
-          # If dir is ".", set it to empty for working-directory
-          if [ "$CODEMOD_DIR" = "." ]; then
-            CODEMOD_DIR=""
-          fi
+          # Keep "." for root directory (working-directory needs a value)
           echo "Found codemod.yaml at: $CODEMOD_YAML"
-          echo "Directory: ${CODEMOD_DIR:-.}"
+          echo "Directory: $CODEMOD_DIR"
           echo "path=$CODEMOD_YAML" >> $GITHUB_OUTPUT
           echo "dir=$CODEMOD_DIR" >> $GITHUB_OUTPUT
 
@@ -95,3 +92,4 @@ jobs:
 
       - name: Publish codemod
         uses: codemod/publish-action@v1
+        working-directory: ${{ steps.find.outputs.dir }}
