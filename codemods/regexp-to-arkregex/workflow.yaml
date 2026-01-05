@@ -4,7 +4,8 @@ version: "1"
 
 params:
   schema:
-    - name: lintFormatCommand
+    lintFormatCommand:
+      name: "Lint Format Command"
       description: "Custom command to run for linting and formatting"
       type: string
       default: "npm run lint || true && npm run format"
