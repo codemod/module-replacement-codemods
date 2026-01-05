@@ -1,15 +1,15 @@
-#!/bin/bash
+#!/bin/sh
 # Script to add PACKAGE_NAME dependency to packages that actually use it
 # This script detects the package manager and installs the dependency only where needed
 
-set -euo pipefail
+set -eu
 
 PACKAGE_NAME="arkregex"
 PACKAGE_VERSION="0.0.5"
 
 # Find package manager by checking for lock files
 detect_package_manager() {
-  local dir="$1"
+  dir="$1"
   
   if [ -f "$dir/pnpm-lock.yaml" ]; then
     echo "pnpm"
@@ -25,44 +25,52 @@ detect_package_manager() {
   fi
 }
 
-# Check if a directory contains TypeScript files that import the package
-has_package_import() {
-  local dir="$1"
-  local package="$2"
-  
-  # Use find to search for .ts and .tsx files, excluding node_modules, .git, dist, build
-  if find "$dir" -type f \( -name "*.ts" -o -name "*.tsx" \) \
-    -not -path "*/node_modules/*" \
-    -not -path "*/.git/*" \
-    -not -path "*/dist/*" \
-    -not -path "*/build/*" \
-    -exec grep -l "from [\"']${package}[\"']" {} \; 2>/dev/null | head -1 | grep -q .; then
-    return 0  # Found import
-  else
-    return 1  # No import found
-  fi
-}
 
 # Install package using the detected package manager
 install_package() {
-  local dir="$1"
-  local pm="$2"
-  local package="${PACKAGE_NAME}@${PACKAGE_VERSION}"
+  dir="$1"
+  pm="$2"
+  package="${PACKAGE_NAME}@${PACKAGE_VERSION}"
   
   echo "Installing ${package} in $(basename "$dir") using $pm..."
   
   case "$pm" in
     pnpm)
-      (cd "$dir" && pnpm add "${package}")
+      echo ">>> EXECUTING: cd \"$dir\" && pnpm add ${package}"
+      if (cd "$dir" && pnpm add ${package}); then
+        echo ">>> SUCCESS: pnpm add completed"
+      else
+        echo ">>> ERROR: pnpm add failed"
+        return 1
+      fi
       ;;
     yarn)
-      (cd "$dir" && yarn add "${package}")
+      # Simple yarn add command without quotes and without -W flag
+      echo ">>> EXECUTING: cd \"$dir\" && yarn add ${package}"
+      if (cd "$dir" && yarn add ${package}); then
+        echo ">>> SUCCESS: yarn add completed"
+      else
+        echo ">>> ERROR: yarn add failed"
+        return 1
+      fi
       ;;
     bun)
-      (cd "$dir" && bun add "${package}")
+      echo ">>> EXECUTING: cd \"$dir\" && bun add ${package}"
+      if (cd "$dir" && bun add ${package}); then
+        echo ">>> SUCCESS: bun add completed"
+      else
+        echo ">>> ERROR: bun add failed"
+        return 1
+      fi
       ;;
     npm)
-      (cd "$dir" && npm install "${package}")
+      echo ">>> EXECUTING: cd \"$dir\" && npm install ${package}"
+      if (cd "$dir" && npm install ${package}); then
+        echo ">>> SUCCESS: npm install completed"
+      else
+        echo ">>> ERROR: npm install failed"
+        return 1
+      fi
       ;;
     *)
       echo "Unknown package manager: $pm" >&2
@@ -71,41 +79,159 @@ install_package() {
   esac
 }
 
+
+# Check if a directory is a monorepo root
+is_monorepo_root() {
+  dir="$1"
+  package_json="$dir/package.json"
+  
+  if [ ! -f "$package_json" ]; then
+    return 1
+  fi
+  
+  # Check for yarn workspaces
+  if grep -q '"workspaces"' "$package_json" 2>/dev/null; then
+    return 0
+  fi
+  
+  # Check for pnpm workspaces
+  if [ -f "$dir/pnpm-workspace.yaml" ] || grep -q '"pnpm"' "$package_json" 2>/dev/null; then
+    return 0
+  fi
+  
+  # Check for npm workspaces
+  if grep -q '"workspaces"' "$package_json" 2>/dev/null; then
+    return 0
+  fi
+  
+  return 1
+}
+
+# Find monorepo root (directory with workspaces configuration)
+find_monorepo_root() {
+  dir="$1"
+  current="$dir"
+  
+  while [ "$current" != "/" ]; do
+    if is_monorepo_root "$current"; then
+      echo "$current"
+      return 0
+    fi
+    current=$(dirname "$current")
+  done
+  
+  # If no monorepo root found, return the original directory
+  echo "$dir"
+}
+
+# Check if package is used anywhere in the directory tree
+has_package_import_anywhere() {
+  dir="$1"
+  package="$2"
+  
+  echo ">>> Checking for imports of '${package}' anywhere in $(basename "$dir")..."
+  
+  matching_files=$(find "$dir" -type f \( -name "*.ts" -o -name "*.tsx" \) \
+    ! -path "*/node_modules/*" \
+    ! -path "*/.git/*" \
+    ! -path "*/dist/*" \
+    ! -path "*/build/*" \
+    ! -path "*/.yarn/*" \
+    -exec grep -l "from [\"']${package}[\"']" {} \; 2>/dev/null | head -1)
+  
+  if [ -n "$matching_files" ]; then
+    echo ">>> FOUND import in: $matching_files"
+    return 0  # Found import
+  else
+    echo ">>> NO imports found"
+    return 1  # No import found
+  fi
+}
+
+# Check if package is already installed at root
+is_package_installed_at_root() {
+  root_dir="$1"
+  package_json="$root_dir/package.json"
+  
+  if [ -f "$package_json" ]; then
+    grep -q "\"${PACKAGE_NAME}\"" "$package_json" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
 # Main execution
 main() {
   # Start from the target directory (where the codemod is run)
-  local target_dir="${1:-.}"
-  local root_pm
+  target_dir="${1:-.}"
   
-  # Detect package manager at root level
-  root_pm=$(detect_package_manager "$target_dir")
-  echo "Detected package manager: $root_pm"
+  echo "========================================="
+  echo "Starting dependency installation script"
+  echo "Target directory: $target_dir"
+  echo "Package: ${PACKAGE_NAME}@${PACKAGE_VERSION}"
+  echo "========================================="
   
-  # Find all package.json files in the target directory
-  # Exclude node_modules and common build/dependency directories
-  while IFS= read -r -d '' package_json; do
-    package_dir=$(dirname "$package_json")
+  # Find monorepo root
+  monorepo_root=$(find_monorepo_root "$target_dir")
+  echo "Monorepo root: $monorepo_root"
+  
+  # Check if it's actually a monorepo
+  if is_monorepo_root "$monorepo_root"; then
+    echo ">>> Monorepo detected"
     
-    # Skip if this package already has the dependency (check both dependencies and devDependencies)
-    if grep -q "\"${PACKAGE_NAME}\"" "$package_json" 2>/dev/null; then
-      echo "Skipping $(basename "$package_dir"): ${PACKAGE_NAME} already in dependencies or devDependencies"
-      continue
+    # Check if package is already installed at root
+    if is_package_installed_at_root "$monorepo_root"; then
+      echo ">>> SKIPPING: ${PACKAGE_NAME} already installed at monorepo root"
+      return 0
     fi
     
-    # Check if this package actually uses the dependency
-    if has_package_import "$package_dir" "$PACKAGE_NAME"; then
-      # Detect package manager for this specific package (might be different in monorepos)
-      local pm=$(detect_package_manager "$package_dir")
-      install_package "$package_dir" "$pm"
+    # Check if package is used anywhere in the monorepo
+    if has_package_import_anywhere "$target_dir" "$PACKAGE_NAME"; then
+      # Detect package manager at root
+      root_pm=$(detect_package_manager "$monorepo_root")
+      echo ">>> Detected package manager: $root_pm"
+      echo ">>> Installing ${PACKAGE_NAME}@${PACKAGE_VERSION} at monorepo root..."
+      
+      if install_package "$monorepo_root" "$root_pm"; then
+        echo ">>> SUCCESS: Installation completed at monorepo root"
+      else
+        echo ">>> ERROR: Installation failed at monorepo root"
+        return 1
+      fi
     else
-      echo "Skipping $(basename "$package_dir"): no imports of ${PACKAGE_NAME} found"
+      echo ">>> SKIPPING: no imports of ${PACKAGE_NAME} found in monorepo"
     fi
-  done < <(find "$target_dir" -name "package.json" \
-    -not -path "*/node_modules/*" \
-    -not -path "*/.git/*" \
-    -not -path "*/dist/*" \
-    -not -path "*/build/*" \
-    -print0)
+  else
+    echo ">>> Not a monorepo, checking for package usage..."
+    
+    # For non-monorepo, check if package is used
+    if has_package_import_anywhere "$target_dir" "$PACKAGE_NAME"; then
+      # Check if already installed
+      if is_package_installed_at_root "$target_dir"; then
+        echo ">>> SKIPPING: ${PACKAGE_NAME} already installed"
+        return 0
+      fi
+      
+      # Detect package manager
+      pm=$(detect_package_manager "$target_dir")
+      echo ">>> Detected package manager: $pm"
+      echo ">>> Installing ${PACKAGE_NAME}@${PACKAGE_VERSION}..."
+      
+      if install_package "$target_dir" "$pm"; then
+        echo ">>> SUCCESS: Installation completed"
+      else
+        echo ">>> ERROR: Installation failed"
+        return 1
+      fi
+    else
+      echo ">>> SKIPPING: no imports of ${PACKAGE_NAME} found"
+    fi
+  fi
+  
+  echo ""
+  echo "========================================="
+  echo "Installation complete"
+  echo "========================================="
 }
 
 main "$@"

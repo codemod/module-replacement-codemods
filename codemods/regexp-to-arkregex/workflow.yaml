@@ -24,113 +24,37 @@ nodes:
           includes:
             - "**/*.ts"
             - "**/*.tsx"
+          excludes:
+            - "**/node_modules/**"
+            - "**/.yarn/**"
+            - "**/.yarn/releases/**"
+            - "**/.yarn/releases/*.cjs"
+            - "**/dist/**"
+            - "**/build/**"
+            - "**/.git/**"
+            - "**/coverage/**"
+            - "**/.next/**"
+            - "**/.turbo/**"
+            - "**/*.cjs"
+            - "**/*.mjs"
+            - "**/*.js"
+            - "**/*.jsx"
+            - "**/.yarn/**/*"
 
       - id: install-package-if-needed
         name: "Install the package and update the relevant package.json and lock file as needed"
+        depends_on: 
+          - scan-and-fix
         run: |
-          set -eu
-          
-          PACKAGE_NAME="arkregex"
-          PACKAGE_VERSION="0.0.5"
-          
-          # Find package manager by checking for lock files
-          detect_package_manager() {
-            local dir="$1"
-            
-            if [ -f "$dir/pnpm-lock.yaml" ]; then
-              echo "pnpm"
-            elif [ -f "$dir/yarn.lock" ]; then
-              echo "yarn"
-            elif [ -f "$dir/bun.lockb" ]; then
-              echo "bun"
-            elif [ -f "$dir/package-lock.json" ]; then
-              echo "npm"
-            else
-              # Default to npm if no lock file found
-              echo "npm"
-            fi
-          }
-          
-          # Check if a directory contains TypeScript files that import the package
-          has_package_import() {
-            local dir="$1"
-            local package="$2"
-            
-            # Use find to search for .ts and .tsx files, excluding node_modules, .git, dist, build
-            if find "$dir" -type f \( -name "*.ts" -o -name "*.tsx" \) \
-              ! -path "*/node_modules/*" \
-              ! -path "*/.git/*" \
-              ! -path "*/dist/*" \
-              ! -path "*/build/*" \
-              -exec grep -l "from [\"']${package}[\"']" {} \; 2>/dev/null | head -n 1 | grep -q .; then
-              return 0  # Found import
-            else
-              return 1  # No import found
-            fi
-          }
-          
-          # Install package using the detected package manager
-          install_package() {
-            local dir="$1"
-            local pm="$2"
-            local package="${PACKAGE_NAME}@${PACKAGE_VERSION}"
-            
-            echo "Installing ${package} in $(basename "$dir") using $pm..."
-            
-            case "$pm" in
-              pnpm)
-                (cd "$dir" && pnpm add "${package}")
-                ;;
-              yarn)
-                (cd "$dir" && yarn add "${package}")
-                ;;
-              bun)
-                (cd "$dir" && bun add "${package}")
-                ;;
-              npm)
-                (cd "$dir" && npm install "${package}")
-                ;;
-              *)
-                echo "Unknown package manager: $pm" >&2
-                return 1
-                ;;
-            esac
-          }
-          
-          # Main execution
-          # Start from the target directory (where the codemod is run)
-          target_dir="${PWD}"
-          
-          # Detect package manager at root level
-          root_pm=$(detect_package_manager "$target_dir")
-          echo "Detected package manager: $root_pm"
-          
-          # Find all package.json files in the target directory
-          # Exclude node_modules and common build/dependency directories
-          find "$target_dir" -name "package.json" \
-            ! -path "*/node_modules/*" \
-            ! -path "*/.git/*" \
-            ! -path "*/dist/*" \
-            ! -path "*/build/*" \
-            -print | while IFS= read -r package_json; do
-            package_dir=$(dirname "$package_json")
-            
-            # Skip if this package already has the dependency (check both dependencies and devDependencies)
-            if grep -q "\"${PACKAGE_NAME}\"" "$package_json" 2>/dev/null; then
-              echo "Skipping $(basename "$package_dir"): ${PACKAGE_NAME} already in dependencies or devDependencies"
-              continue
-            fi
-            
-            # Check if this package actually uses the dependency
-            if has_package_import "$package_dir" "$PACKAGE_NAME"; then
-              # Detect package manager for this specific package (might be different in monorepos)
-              pm=$(detect_package_manager "$package_dir")
-              install_package "$package_dir" "$pm"
-            fi
-          done
+          SCRIPT=$(find . .. ../.. -name "add-dependency.sh" -path "*/regexp-to-arkregex/scripts/*" 2>/dev/null | head -1) || \
+            SCRIPT=$(find . -path "*/node_modules/*/regexp-to-arkregex/scripts/add-dependency.sh" 2>/dev/null | head -1)
+          [ -f "$SCRIPT" ] || { echo "Error: add-dependency.sh not found" >&2; exit 1; }
+          [ -x "$SCRIPT" ] || chmod +x "$SCRIPT"
+          "$SCRIPT" "${PWD}"
 
       - id: lint-and-format
         name: "Run linting and formatting"
+        depends_on: [install-package-if-needed]
         run: |
           set -eu
           

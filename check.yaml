@@ -50,6 +50,30 @@ nodes:
             fi
           }
           
+          # Find yarn workspace root (directory containing yarn.lock)
+          find_yarn_root() {
+            local dir="$1"
+            local current="$dir"
+            
+            while [ "$current" != "/" ]; do
+              if [ -f "$current/yarn.lock" ]; then
+                echo "$current"
+                return 0
+              fi
+              current=$(dirname "$current")
+            done
+            echo "$dir"  # Fallback to original dir if no root found
+          }
+          
+          # Get workspace name from package.json
+          get_workspace_name() {
+            local package_json="$1"
+            if [ -f "$package_json" ]; then
+              # Try to extract name field from package.json
+              grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' "$package_json" 2>/dev/null | head -1 | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || echo ""
+            fi
+          }
+          
           install_package() {
             local dir="$1"
             local pm="$2"
@@ -62,7 +86,30 @@ nodes:
                 (cd "$dir" && pnpm add "${package}")
                 ;;
               yarn)
-                (cd "$dir" && yarn add "${package}")
+                # For yarn, handle workspaces properly
+                local yarn_root=$(find_yarn_root "$dir")
+                local package_json="$dir/package.json"
+                
+                if [ -f "$yarn_root/package.json" ] && grep -q '"workspaces"' "$yarn_root/package.json" 2>/dev/null; then
+                  # We're in a yarn workspace
+                  local workspace_name=$(get_workspace_name "$package_json")
+                  
+                  if [ -n "$workspace_name" ] && [ "$yarn_root" != "$dir" ]; then
+                    # Use yarn workspace command from root
+                    echo "Detected yarn workspace. Installing to workspace: $workspace_name"
+                    (cd "$yarn_root" && yarn workspace "$workspace_name" add "${package}")
+                  else
+                    # Fallback: try adding from the package directory
+                    # This works for yarn v1 (classic) in some cases
+                    (cd "$dir" && yarn add "${package}" || {
+                      echo "Warning: yarn add failed from package directory, trying from workspace root..."
+                      (cd "$yarn_root" && yarn add "${package}" -W)
+                    })
+                  fi
+                else
+                  # Not a workspace, or we're at the root - use standard yarn add
+                  (cd "$dir" && yarn add "${package}")
+                fi
                 ;;
               bun)
                 (cd "$dir" && bun add "${package}")

@@ -331,6 +331,28 @@ async function transform(root: SgRoot<TSX>): Promise<string | null> {
   const rootNode = root.root();
   const sourceText = rootNode.text();
 
+  // Safety check: Skip files that look like CommonJS or other non-TypeScript files
+  // This prevents accidentally transforming files like .cjs, .mjs, or yarn binaries
+  if (
+    sourceText.includes("require(") && 
+    !sourceText.includes("import ") && 
+    !sourceText.includes("export ")
+  ) {
+    // This looks like a CommonJS file, skip it
+    return null;
+  }
+
+  // Additional check: Skip if file contains patterns that suggest it's not a TypeScript source file
+  // (e.g., yarn binary files often have specific patterns)
+  if (
+    sourceText.includes("#!/usr/bin/env node") ||
+    sourceText.includes("module.exports") ||
+    (sourceText.includes("require(") && sourceText.includes("__dirname"))
+  ) {
+    // This looks like a Node.js script or CommonJS module, skip it
+    return null;
+  }
+
   // Check if regex is already imported
   const importInfo = hasRegexImport(rootNode);
   const alreadyHasRegexImport = importInfo.has;
