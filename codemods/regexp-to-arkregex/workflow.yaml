@@ -8,7 +8,6 @@ params:
       name: "Lint Format Command"
       description: "Custom command to run for linting and formatting"
       type: string
-      default: "npm run lint || true && npm run format"
 
 nodes:
   - id: transform-and-update
@@ -58,8 +57,11 @@ nodes:
         run: |
           set -eu
           
-          # Use parameter if provided, otherwise use default
-          LINT_FORMAT_CMD="${PARAM_LINT_FORMAT_COMMAND:-npm run lint || true && npm run format}"
+          # Only run if parameter is provided
+          if [ -z "${PARAM_LINT_FORMAT_COMMAND:-}" ]; then
+            echo "Skipping linting and formatting (no command provided)"
+            exit 0
+          fi
           
           echo "Running linting and formatting..."
-          eval "$LINT_FORMAT_CMD"
+          eval "$PARAM_LINT_FORMAT_COMMAND"
