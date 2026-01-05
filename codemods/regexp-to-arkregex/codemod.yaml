@@ -1,7 +1,7 @@
 schema_version: "1.0"
 
 name: "@codemod/regexp-to-arkregex"
-version: "1.0.9"
+version: "1.0.10"
 description: "Replace`new RegExp` usages with arkregex's type-safe `regex()` function"
 author: "Amirabbas Ghasemi <amirabbas08dev@gmail.com>"
 license: "MIT"
