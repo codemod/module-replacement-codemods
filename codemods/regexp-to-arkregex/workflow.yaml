@@ -120,3 +120,14 @@ nodes:
               install_package "$package_dir" "$pm"
             fi
           done
+
+      - id: lint-and-format
+        name: "Run linting and formatting"
+        run: |
+          set -eu
+          
+          # Use custom command if provided via environment variable, otherwise use default
+          LINT_FORMAT_CMD="${LINT_FORMAT_CMD:-npm run lint || true && npm run format}"
+          
+          echo "Running linting and formatting..."
+          eval "$LINT_FORMAT_CMD"
