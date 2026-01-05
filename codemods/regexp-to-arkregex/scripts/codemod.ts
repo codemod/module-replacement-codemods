@@ -329,6 +329,7 @@ function hasRegexConflict(rootNode: SgNode<TSX>): boolean {
 
 async function transform(root: SgRoot<TSX>): Promise<string | null> {
   const rootNode = root.root();
+  const sourceText = rootNode.text();
 
   // Check if regex is already imported
   const importInfo = hasRegexImport(rootNode);
@@ -435,18 +436,49 @@ async function transform(root: SgRoot<TSX>): Promise<string | null> {
 
     // Add TODO comment if either is dynamic
     if (!patternStatic || !flagsStatic) {
-      const containingStmt = expression.ancestors().find((a: SgNode<TSX>) =>
-        a.kind() === "expression_statement" ||
-        a.kind() === "variable_declaration" ||
-        a.kind() === "return_statement"
-      );
+      // Find the start of the line where the expression is located
+      const exprRange = expression.range();
       
-      if (containingStmt && !hasTodoComment(containingStmt)) {
+      // Find the start of the line (go backwards to find the previous newline)
+      let lineStart = exprRange.start.index;
+      while (lineStart > 0 && sourceText[lineStart - 1] !== '\n') {
+        lineStart--;
+      }
+      
+      // Check if there's already a TODO comment on this line or the line before
+      // First, check the current line
+      const lineEnd = sourceText.indexOf('\n', lineStart);
+      const currentLineText = lineEnd >= 0 
+        ? sourceText.substring(lineStart, lineEnd)
+        : sourceText.substring(lineStart);
+      const hasCommentOnCurrentLine = currentLineText.trim().startsWith("//") && 
+        currentLineText.includes("TODO(arkregex)");
+      
+      // Then check the previous line
+      const lineBeforeStart = lineStart > 0 ? (() => {
+        let pos = lineStart - 1;
+        // Skip the newline itself
+        if (pos >= 0 && sourceText[pos] === '\n') pos--;
+        // Go back to find the start of the previous line
+        while (pos > 0 && sourceText[pos - 1] !== '\n') {
+          pos--;
+        }
+        return pos;
+      })() : -1;
+      
+      const hasCommentOnPreviousLine = lineBeforeStart >= 0 && 
+        sourceText.substring(lineBeforeStart, lineStart).includes("TODO(arkregex)");
+      
+      const hasExistingComment = hasCommentOnCurrentLine || hasCommentOnPreviousLine;
+      
+      if (!hasExistingComment) {
         const todoComment = "// TODO(arkregex): pattern/flags not statically known; typing may degrade. Consider regex.as<...>(...)\n";
-        const stmtRange = containingStmt.range();
+        // Place comment at the start of the current line (which will appear right above the expression)
+        // If we're not at the start of the file, we're placing it on the line before
+        const insertPos = lineStart > 0 ? lineStart : 0;
         edits.push({
-          startPos: stmtRange.start.index,
-          endPos: stmtRange.start.index,
+          startPos: insertPos,
+          endPos: insertPos,
           insertedText: todoComment,
         });
       }
@@ -509,18 +541,49 @@ async function transform(root: SgRoot<TSX>): Promise<string | null> {
     }
 
     if (!patternStatic || !flagsStatic) {
-      const containingStmt = call.ancestors().find((a: SgNode<TSX>) =>
-        a.kind() === "expression_statement" ||
-        a.kind() === "variable_declaration" ||
-        a.kind() === "return_statement"
-      );
+      // Find the start of the line where the call is located
+      const callRange = call.range();
       
-      if (containingStmt && !hasTodoComment(containingStmt)) {
+      // Find the start of the line (go backwards to find the previous newline)
+      let lineStart = callRange.start.index;
+      while (lineStart > 0 && sourceText[lineStart - 1] !== '\n') {
+        lineStart--;
+      }
+      
+      // Check if there's already a TODO comment on this line or the line before
+      // First, check the current line
+      const lineEnd = sourceText.indexOf('\n', lineStart);
+      const currentLineText = lineEnd >= 0 
+        ? sourceText.substring(lineStart, lineEnd)
+        : sourceText.substring(lineStart);
+      const hasCommentOnCurrentLine = currentLineText.trim().startsWith("//") && 
+        currentLineText.includes("TODO(arkregex)");
+      
+      // Then check the previous line
+      const lineBeforeStart = lineStart > 0 ? (() => {
+        let pos = lineStart - 1;
+        // Skip the newline itself
+        if (pos >= 0 && sourceText[pos] === '\n') pos--;
+        // Go back to find the start of the previous line
+        while (pos > 0 && sourceText[pos - 1] !== '\n') {
+          pos--;
+        }
+        return pos;
+      })() : -1;
+      
+      const hasCommentOnPreviousLine = lineBeforeStart >= 0 && 
+        sourceText.substring(lineBeforeStart, lineStart).includes("TODO(arkregex)");
+      
+      const hasExistingComment = hasCommentOnCurrentLine || hasCommentOnPreviousLine;
+      
+      if (!hasExistingComment) {
         const todoComment = "// TODO(arkregex): pattern/flags not statically known; typing may degrade. Consider regex.as<...>(...)\n";
-        const stmtRange = containingStmt.range();
+        // Place comment at the start of the current line (which will appear right above the expression)
+        // If we're not at the start of the file, we're placing it on the line before
+        const insertPos = lineStart > 0 ? lineStart : 0;
         edits.push({
-          startPos: stmtRange.start.index,
-          endPos: stmtRange.start.index,
+          startPos: insertPos,
+          endPos: insertPos,
           insertedText: todoComment,
         });
       }
