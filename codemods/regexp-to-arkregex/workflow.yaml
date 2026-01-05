@@ -2,6 +2,13 @@
 
 version: "1"
 
+params:
+  schema:
+    - name: lintFormatCommand
+      description: "Custom command to run for linting and formatting"
+      type: string
+      default: "npm run lint || true && npm run format"
+
 nodes:
   - id: transform-and-update
     name: Transform code and update dependencies
@@ -126,8 +133,8 @@ nodes:
         run: |
           set -eu
           
-          # Use custom command if provided via environment variable, otherwise use default
-          LINT_FORMAT_CMD="${LINT_FORMAT_CMD:-npm run lint || true && npm run format}"
+          # Use parameter if provided, otherwise use default
+          LINT_FORMAT_CMD="${PARAM_LINT_FORMAT_COMMAND:-npm run lint || true && npm run format}"
           
           echo "Running linting and formatting..."
           eval "$LINT_FORMAT_CMD"
