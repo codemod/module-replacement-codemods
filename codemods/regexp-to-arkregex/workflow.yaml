@@ -118,7 +118,5 @@ nodes:
               # Detect package manager for this specific package (might be different in monorepos)
               pm=$(detect_package_manager "$package_dir")
               install_package "$package_dir" "$pm"
-            else
-              echo "Skipping $(basename "$package_dir"): no imports of ${PACKAGE_NAME} found"
             fi
           done
